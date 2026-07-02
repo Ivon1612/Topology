@@ -266,9 +266,9 @@ function dibujarArbol(filas, cidrPorNodo) {
     	const dashboard = tableau.extensions.dashboardContent.dashboard;
     	dashboard.worksheets.forEach(ws => {
       // aplica a todas las hojas menos la que alimenta el árbol
-      	if (ws.name !== "TU_HOJA") {
+      	if (ws.name !== "tree") {
         	ws.applyFilterAsync(
-          		"HL3",                          // campo por el que filtra
+          		"HL3-1",                          // campo por el que filtra
           		[padreId],                       // valor = el HL3 padre del nodo clickeado
           		tableau.FilterUpdateType.Replace
         );
