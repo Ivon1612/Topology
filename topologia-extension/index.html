@@ -296,9 +296,9 @@ function dibujarArbol(filas, cidrPorNodo) {
 	// limpia el filtro al cerrar
   	const dashboard = tableau.extensions.dashboardContent.dashboard;
   	dashboard.worksheets.forEach(ws => {
-    	if (ws.name !== "TU_HOJA") {
+    	if (ws.name !== "tree") {
       	ws.applyFilterAsync(
-       	 "HL3",
+       	 "HL3-1",
         	[],
        	 tableau.FilterUpdateType.All  // All = quita el filtro
       );
