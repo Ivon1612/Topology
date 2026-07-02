@@ -259,8 +259,24 @@ function dibujarArbol(filas, cidrPorNodo) {
     if (d.children) return;
 
     const nodoId = d.data.data.nombre;
-    const cidrs = cidrPorNodo[nodoId] || [];
+	const padreId = d.parent ? d.parent.data.data.nombre : null;
 
+	 // filtra otras hojas del dashboard por el HL3 padre
+  	if (padreId && padreId !== "RAIZ") {
+    	const dashboard = tableau.extensions.dashboardContent.dashboard;
+    	dashboard.worksheets.forEach(ws => {
+      // aplica a todas las hojas menos la que alimenta el árbol
+      	if (ws.name !== "TU_HOJA") {
+        	ws.applyFilterAsync(
+          		"HL3",                          // campo por el que filtra
+          		[padreId],                       // valor = el HL3 padre del nodo clickeado
+          		tableau.FilterUpdateType.Replace
+        );
+      }
+    });
+  }
+	
+    const cidrs = cidrPorNodo[nodoId] || [];
     const panel = document.getElementById("panel-cidr");
     const titulo = document.getElementById("panel-titulo");
     const lista = document.getElementById("panel-lista");
@@ -277,7 +293,18 @@ function dibujarArbol(filas, cidrPorNodo) {
   // cerrar panel al hacer clic en X
   document.getElementById("panel-cerrar").onclick = () => {
     document.getElementById("panel-cidr").style.display = "none";
-  };
+	// limpia el filtro al cerrar
+  	const dashboard = tableau.extensions.dashboardContent.dashboard;
+  	dashboard.worksheets.forEach(ws => {
+    	if (ws.name !== "TU_HOJA") {
+      	ws.applyFilterAsync(
+       	 "HL3",
+        	[],
+       	 tableau.FilterUpdateType.All  // All = quita el filtro
+      );
+    }
+  });
+};
 
   // cerrar panel al hacer clic fuera
   document.getElementById("chart").onclick = () => {
