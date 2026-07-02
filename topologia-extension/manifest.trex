@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest manifest-version="0.1" xmlns="http://www.tableau.com/xml/extension_manifest">
+  <dashboard-extension id="com.tutelco.extensions.topologia" extension-version="1.0.0">
+    <default-locale>es_PE</default-locale>
+    <name>Topología de Red</name>
+    <description>Visualización de topología de red (árbol/nodos) con D3</description>
+    <author name="Iv" email="tu-email@tuempresa.com" organization="Tu Telco" website="https://github.com/tu-usuario"/>
+    <min-api-version>1.4</min-api-version>
+
+    <!--
+      IMPORTANTE: cambia esta URL a la URL real donde publiques index.html
+      (ej. GitHub Pages: https://tu-usuario.github.io/topologia-extension/index.html)
+      Mientras desarrollas localmente, puedes apuntar a http://localhost:PUERTO/index.html
+    -->
+    <source-location>
+      <url>http://localhost:8765/index.html</url>
+    </source-location>
+
+    <icon>iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAGUlEQVR42mNkYPhfz0AEYBxVSF+FAAhVKxhAEZHkBQAAAABJRU5ErkJggg==</icon>
+  </dashboard-extension>
+</manifest>

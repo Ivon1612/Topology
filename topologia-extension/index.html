@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>Topología de Red</title>
+
+<!-- Librería oficial de Tableau Extensions API (incluida localmente en lib/) -->
+<script src="./lib/tableau.extensions.1.latest.js"></script>
+
+<!-- D3 desde CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    overflow: auto;
+    background: #ffffff;
+  }
+  #toolbar {
+    padding: 6px 10px;
+    font-size: 12px;
+    color: #666;
+    border-bottom: 1px solid #eee;
+  }
+  #toolbar select {
+    margin-left: 6px;
+  }
+  #chart {
+    width: 100%;
+    height: calc(100vh - 30px);
+  }
+  .node circle {
+    fill: #1f77b4;
+    stroke: #fff;
+    stroke-width: 1.5px;
+  }
+  .node text {
+    font-size: 11px;
+    fill: #333;
+  }
+  .link {
+    fill: none;
+    stroke: #ccc;
+    stroke-width: 1.5px;
+  }
+  #empty-msg {
+    padding: 20px;
+    color: #888;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  Worksheet:
+  <select id="worksheet-select"></select>
+</div>
+<div id="chart"></div>
+<div id="empty-msg" style="display:none;">
+  No se encontraron columnas "Nodo" / "NodoPadre" en este worksheet.
+  Ajusta los nombres de campo en CONFIG dentro de index.html.
+</div>
+
+<script>
+// =====================================================================
+// CONFIG: ajusta estos nombres a los de tus campos reales en Tableau
+// =====================================================================
+const CONFIG = {
+  campoNodo: "NE Origen",         // nombre del campo/columna que identifica el nodo
+  campoNodoPadre: "HL3-1", // nombre del campo/columna que identifica su padre (vacío/null = raíz)
+  campoCidr: "Cidr"
+};
+
+let worksheetActual = null;
+
+document.addEventListener("DOMContentLoaded", () => {
+  tableau.extensions.initializeAsync().then(() => {
+    const dashboard = tableau.extensions.dashboardContent.dashboard;
+    const select = document.getElementById("worksheet-select");
+
+    dashboard.worksheets.forEach(ws => {
+      const opt = document.createElement("option");
+      opt.value = ws.name;
+      opt.textContent = ws.name;
+      select.appendChild(opt);
+    });
+
+    select.addEventListener("change", () => cargarWorksheet(select.value, dashboard));
+
+    // Carga la primera hoja por defecto
+    if (dashboard.worksheets.length > 0) {
+      select.value = dashboard.worksheets[0].name;
+      cargarWorksheet(dashboard.worksheets[0].name, dashboard);
+    }
+
+    // Si quieres que el árbol se actualice cuando el usuario filtra el dashboard:
+    dashboard.worksheets.forEach(ws => {
+      ws.addEventListener(tableau.TableauEventType.FilterChanged, () => {
+        if (ws.name === select.value) cargarWorksheet(ws.name, dashboard);
+      });
+    });
+
+  }).catch(err => console.error("Error inicializando Extensions API:", err));
+});
+
+function cargarWorksheet(nombreHoja, dashboard) {
+  worksheetActual = dashboard.worksheets.find(w => w.name === nombreHoja);
+  if (!worksheetActual) return;
+
+  worksheetActual.getSummaryDataAsync().then(sumData => {
+    const cols = sumData.columns.map(c => c.fieldName);
+    const idxNodo = cols.indexOf(CONFIG.campoNodo);
+    const idxPadre = cols.indexOf(CONFIG.campoNodoPadre);
+	const idxCidr = cols.indexOf(CONFIG.campoCidr);
+
+    if (idxNodo === -1 || idxPadre === -1) {
+      document.getElementById("empty-msg").style.display = "block";
+      d3.select("#chart").selectAll("*").remove();
+      return;
+	}
+    document.getElementById("empty-msg").style.display = "none";
+
+    const cidrPorNodo = {};
+	sumData.data.forEach(row => {
+	  const nodo = row[idxNodo].formattedValue;
+	  const cidr = row[idxCidr].formattedValue;
+	  if (!cidrPorNodo[nodo]) cidrPorNodo[nodo] = [];
+	  if (cidr && !cidrPorNodo[nodo].includes(cidr)) {
+		cidrPorNodo[nodo].push(cidr);
+	  }
+	});
+	
+	// filas únicas para el árbol (sin duplicados por CIDR)
+	const filasMap = {};
+	sumData.data.forEach(row => {
+	const id = row[idxNodo].formattedValue;
+	const parentId = row[idxPadre].formattedValue || null;
+
+	if (id === parentId) {
+    // nodo que es su propio padre:
+    // lo agrega como HL4 hijo con id distinto internamente
+		const idHijo = id + "__HL4";
+		if (!filasMap[idHijo]) {
+      filasMap[idHijo] = {
+        id: idHijo,
+        parentId: id,        // cuelga del HL3 del mismo nombre
+        nombre: id           // nombre visual sin el sufijo
+		};
+		}
+    // el HL3 se agrega normalmente como huérfano (lo detecta el código de padresHuerfanos)
+	} else {
+		if (!filasMap[id]) {
+		filasMap[id] = { id, parentId, nombre: id };
+		}
+	}
+	});
+	const filas = Object.values(filasMap);
+	
+	// detecta nodos HL3 que solo aparecen como padres pero no como filas propias
+	const ids = new Set(filas.map(f => f.id));
+	const padresHuerfanos = [...new Set(filas.map(f => f.parentId))]
+	  .filter(p => p !== null && !ids.has(p));
+
+	// los agrega como nodos intermedios colgando de una raíz sintética
+	if (padresHuerfanos.length > 0) {
+	  padresHuerfanos.forEach(p => filas.push({ id: p, parentId: "RAIZ", nombre: p }));
+	  filas.push({ id: "RAIZ", parentId: null, nombre: "RAIZ" });
+	}
+
+    dibujarArbol(filas, cidrPorNodo);
+  }).catch(err => console.error("Error leyendo datos del worksheet:", err));
+}
+
+// =====================================================================
+// TODO: Reemplaza esta función con tu lógica D3 existente de topología
+// (la que ya usas en tu iframe HTML/JS). Aquí dejo un árbol jerárquico
+// básico con d3.tree() como punto de partida funcional.
+// =====================================================================
+function dibujarArbol(filas, cidrPorNodo) {
+  const contenedor = document.getElementById("chart");
+  contenedor.innerHTML = "";
+
+  let root;
+  try {
+    root = d3.stratify()
+      .id(d => d.id)
+      .parentId(d => d.parentId)
+      (filas);
+  } catch (e) {
+    console.error("Error construyendo jerarquía:", e);
+    return;
+  }
+
+  root = d3.hierarchy(root);
+
+  // calcula dimensiones según cantidad de nodos hoja
+  const hojasCount = root.leaves().length;
+  const nodeWidth = 120;  // espacio horizontal por hoja
+  const nodeHeight = 80;  // espacio vertical entre niveles
+  const profundidad = root.height;
+
+  const totalWidth  = Math.max(hojasCount * nodeWidth, 800);
+  const totalHeight = Math.max((profundidad + 1) * nodeHeight * 2, 400);
+
+  const treeLayout = d3.tree().size([totalWidth - 160, totalHeight - 80]);
+  treeLayout(root);
+
+  // SVG con zoom/pan
+  const svg = d3.select("#chart")
+    .append("svg")
+    .attr("width", "100%")
+    .attr("height", "100%")
+    .style("cursor", "grab");
+
+  const g = svg.append("g").attr("transform", "translate(80,40)");
+
+  svg.call(d3.zoom()
+    .scaleExtent([0.2, 3])
+    .on("zoom", (event) => g.attr("transform", event.transform))
+  );
+
+  // links verticales
+  g.selectAll(".link")
+    .data(root.links())
+    .join("path")
+    .attr("class", "link")
+    .attr("d", d3.linkVertical()
+      .x(d => d.x)
+      .y(d => d.y));
+
+  // nodos
+  const node = g.selectAll(".node")
+    .data(root.descendants())
+    .join("g")
+    .attr("class", "node")
+    .attr("transform", d => `translate(${d.x},${d.y})`);
+
+  node.append("circle")
+    .attr("r", d => d.depth === 0 ? 14 : 25)
+    .style("fill", d => d.depth === 0 ? "#e15759" : d.children ? "#4e79a7" : "#76b7b2");
+
+  // etiquetas — arriba para nodos con hijos, abajo para hojas
+  node.append("text")
+    .attr("dy", d => d.children ? "-0.5em" : "0.5em")
+    .attr("x", 0)
+    .attr("text-anchor", "middle")
+	.attr("transform", d => d.children ? "" : "rotate(-45)")
+    .style("font-size", "10px")
+	.style("font-weight", "bold")
+    .style("fill", "#333")
+    .text(d => d.data.data.nombre)
+
+  // al final, donde agregas los nodos, añade el clic:
+  node.on("click", (event, d) => {
+    // solo en nodos hoja (HL4)
+    if (d.children) return;
+
+    const nodoId = d.data.data.nombre;
+    const cidrs = cidrPorNodo[nodoId] || [];
+
+    const panel = document.getElementById("panel-cidr");
+    const titulo = document.getElementById("panel-titulo");
+    const lista = document.getElementById("panel-lista");
+
+    titulo.textContent = nodoId;
+    lista.innerHTML = cidrs.length > 0
+      ? cidrs.map(c => `<li>${c}</li>`).join("")
+      : "<li style='color:#999'>Sin CIDRs</li>";
+
+    panel.style.display = "block";
+    event.stopPropagation();
+  });
+
+  // cerrar panel al hacer clic en X
+  document.getElementById("panel-cerrar").onclick = () => {
+    document.getElementById("panel-cidr").style.display = "none";
+  };
+
+  // cerrar panel al hacer clic fuera
+  document.getElementById("chart").onclick = () => {
+    document.getElementById("panel-cidr").style.display = "none";
+  };
+}
+</script>
+<div id="panel-cidr" style="
+  display:none;
+  position:fixed;
+  right:0; top:30px;
+  width:280px;
+  height:calc(100vh - 30px);
+  background:#fff;
+  border-left:2px solid #ddd;
+  box-shadow:-2px 0 8px rgba(0,0,0,0.1);
+  overflow-y:auto;
+  padding:12px;
+  font-size:12px;
+  z-index:100;
+">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+    <strong id="panel-titulo">CIDRs</strong>
+    <span id="panel-cerrar" style="cursor:pointer; font-size:16px; color:#999;">✕</span>
+  </div>
+  <ul id="panel-lista" style="margin:0; padding-left:16px; line-height:1.8;"></ul>
+</div>
+</body>
+</html>
