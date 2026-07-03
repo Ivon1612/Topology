@@ -183,18 +183,37 @@ function dibujarArbol(filas, cidrPorNodo) {
   const treeLayout = d3.tree().size([totalWidth - 160, totalHeight - 80]);
   treeLayout(root);
 
-  // SVG con zoom/pan
+  const svgEl = document.getElementById("chart");
+  const viewW = svgEl.clientWidth || 800;
+  const viewH = svgEl.clientHeight || 600;
+
   const svg = d3.select("#chart")
     .append("svg")
     .attr("width", "100%")
     .attr("height", "100%")
     .style("cursor", "grab");
 
-  const g = svg.append("g").attr("transform", "translate(80,40)");
+  const g = svg.append("g");
 
-  svg.call(d3.zoom()
-    .scaleExtent([0.2, 3])
-    .on("zoom", (event) => g.attr("transform", event.transform))
+// calcula escala inicial para que todo el árbol quepa
+  const scaleX = viewW / (totalWidth + 80);
+  const scaleY = viewH / (totalHeight + 80);
+  const scaleInicial = Math.min(scaleX, scaleY, 1); // nunca mayor a 1 (no zoom in)
+
+// centra el árbol en el área visible
+  const translateX = (viewW - totalWidth * scaleInicial) / 2;
+  const translateY = 20;
+
+  const zoom = d3.zoom()
+    .scaleExtent([0.1, 3])
+    .on("zoom", (event) => g.attr("transform", event.transform));
+
+  svg.call(zoom);
+
+// aplica el zoom inicial
+  svg.call(
+    zoom.transform,
+    d3.zoomIdentity.translate(translateX, translateY).scale(scaleInicial)
   );
 
   // links verticales
