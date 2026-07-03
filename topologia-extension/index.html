@@ -234,22 +234,6 @@ function dibujarArbol(filas, cidrPorNodo) {
     if (d.children) return;
 
     const nodoId = d.data.data.nombre;
-	const padreId = d.parent ? d.parent.data.data.nombre : null;
-
-	 // filtra otras hojas del dashboard por el HL3 padre
-  	if (padreId && padreId !== "RAIZ") {
-    	const dashboard = tableau.extensions.dashboardContent.dashboard;
-    	dashboard.worksheets.forEach(ws => {
-      // aplica a todas las hojas menos la que alimenta el árbol
-      	if (ws.name !== "tree") {
-        	ws.applyFilterAsync(
-          		"HL3-1",                          // campo por el que filtra
-          		[padreId],                       // valor = el HL3 padre del nodo clickeado
-          		tableau.FilterUpdateType.Replace
-        );
-      }
-    });
-  }
 	
     const cidrs = cidrPorNodo[nodoId] || [];
     const panel = document.getElementById("panel-cidr");
