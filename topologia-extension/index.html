@@ -18,15 +18,6 @@
     overflow: auto;
     background: #ffffff;
   }
-  #toolbar {
-    padding: 6px 10px;
-    font-size: 12px;
-    color: #666;
-    border-bottom: 1px solid #eee;
-  }
-  #toolbar select {
-    margin-left: 6px;
-  }
   #chart {
     width: 100%;
     height: calc(100vh - 30px);
@@ -54,10 +45,6 @@
 </head>
 <body>
 
-<div id="toolbar">
-  Worksheet:
-  <select id="worksheet-select"></select>
-</div>
 <div id="chart"></div>
 <div id="empty-msg" style="display:none;">
   No se encontraron columnas "Nodo" / "NodoPadre" en este worksheet.
@@ -74,34 +61,22 @@ const CONFIG = {
   campoCidr: "Cidr"
 };
 
+const HOJA = "tree"; // <- cambia por el nombre exacto de tu hoja
+
 let worksheetActual = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   tableau.extensions.initializeAsync().then(() => {
     const dashboard = tableau.extensions.dashboardContent.dashboard;
-    const select = document.getElementById("worksheet-select");
 
-    dashboard.worksheets.forEach(ws => {
-      const opt = document.createElement("option");
-      opt.value = ws.name;
-      opt.textContent = ws.name;
-      select.appendChild(opt);
-    });
+    cargarWorksheet(HOJA, dashboard);
 
-    select.addEventListener("change", () => cargarWorksheet(select.value, dashboard));
-
-    // Carga la primera hoja por defecto
-    if (dashboard.worksheets.length > 0) {
-      select.value = dashboard.worksheets[0].name;
-      cargarWorksheet(dashboard.worksheets[0].name, dashboard);
-    }
-
-    // Si quieres que el árbol se actualice cuando el usuario filtra el dashboard:
-    dashboard.worksheets.forEach(ws => {
+    const ws = dashboard.worksheets.find(w => w.name === HOJA);
+    if (ws) {
       ws.addEventListener(tableau.TableauEventType.FilterChanged, () => {
-        if (ws.name === select.value) cargarWorksheet(ws.name, dashboard);
+        cargarWorksheet(HOJA, dashboard);
       });
-    });
+    }
 
   }).catch(err => console.error("Error inicializando Extensions API:", err));
 });
