@@ -76,26 +76,43 @@ document.addEventListener("DOMContentLoaded", () => {
         cargarWorksheet(HOJA, dashboard);
       });
     }
-	dashboard.worksheets.forEach(ws => {
-      if (ws.name === HOJA) return;
-
-      ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, async () => {
-        const marcas = await ws.getSelectedMarksAsync();
-        if (marcas.data.length === 0 || marcas.data[0].data.length === 0) return;
-
-        const cols = marcas.data[0].columns.map(c => c.fieldName);
-        const idxHL3 = cols.indexOf("HL3");
-        if (idxHL3 === -1) return;
-
-        const hl3Seleccionado = marcas.data[0].data[0][idxHL3].formattedValue;
-
-        const hojaTopologia = dashboard.worksheets.find(w => w.name === HOJA);
-        if (hojaTopologia) {
-          await hojaTopologia.applyFilterAsync("HL4", [], tableau.FilterUpdateType.All);
-          await hojaTopologia.applyFilterAsync("HL3", [hl3Seleccionado], tableau.FilterUpdateType.Replace);
-        }
-      });
-    });
+	  
+	const ws = dashboard.worksheets.find(w => w.name === HOJA);
+	if (ws) {
+	  ws.addEventListener(tableau.TableauEventType.FilterChanged, async () => {
+	    // lee los filtros activos en la hoja del árbol
+	    const filtros = await ws.getFiltersAsync();
+	    const filtroHL4 = filtros.find(f => f.fieldName === "HL4");
+	    const filtroHL3 = filtros.find(f => f.fieldName === "HL3");
+	
+	    // si hay filtro de HL4 activo (aplicado por "usar como filtro")
+	    // y NO hay filtro de HL3 activo (para no entrar en loop)
+	    if (filtroHL4 && filtroHL4.appliedValues.length > 0 &&
+	        (!filtroHL3 || filtroHL3.appliedValues.length === 0)) {
+	
+	      // obtiene el HL3 correspondiente al HL4 filtrado
+	      const hl4Seleccionado = filtroHL4.appliedValues[0].value;
+	
+	      // busca el HL3 padre en los datos del árbol
+	      const sumData = await ws.getSummaryDataAsync();
+	      const cols = sumData.columns.map(c => c.fieldName);
+	      const idxHL3 = cols.indexOf("HL3");
+	      const idxHL4 = cols.indexOf("HL4");
+	
+	      const fila = sumData.data.find(r => r[idxHL4].formattedValue === hl4Seleccionado);
+	      if (!fila) return;
+	
+	      const hl3Padre = fila[idxHL3].formattedValue;
+	
+	      // reemplaza filtro HL4 por filtro HL3
+	      await ws.applyFilterAsync("HL4", [], tableau.FilterUpdateType.All);
+	      await ws.applyFilterAsync("HL3", [hl3Padre], tableau.FilterUpdateType.Replace);
+	    }
+	
+	    // en cualquier caso, recarga el árbol
+	    cargarWorksheet(HOJA, dashboard);
+	  });
+	}
 
   }).catch(err => console.error("Error inicializando Extensions API:", err));
 });
