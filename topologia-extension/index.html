@@ -76,6 +76,26 @@ document.addEventListener("DOMContentLoaded", () => {
         cargarWorksheet(HOJA, dashboard);
       });
     }
+	dashboard.worksheets.forEach(ws => {
+      if (ws.name === HOJA) return;
+
+      ws.addEventListener(tableau.TableauEventType.MarkSelectionChanged, async () => {
+        const marcas = await ws.getSelectedMarksAsync();
+        if (marcas.data.length === 0 || marcas.data[0].data.length === 0) return;
+
+        const cols = marcas.data[0].columns.map(c => c.fieldName);
+        const idxHL3 = cols.indexOf("HL3");
+        if (idxHL3 === -1) return;
+
+        const hl3Seleccionado = marcas.data[0].data[0][idxHL3].formattedValue;
+
+        const hojaTopologia = dashboard.worksheets.find(w => w.name === HOJA);
+        if (hojaTopologia) {
+          await hojaTopologia.applyFilterAsync("HL4", [], tableau.FilterUpdateType.All);
+          await hojaTopologia.applyFilterAsync("HL3", [hl3Seleccionado], tableau.FilterUpdateType.Replace);
+        }
+      });
+    });
 
   }).catch(err => console.error("Error inicializando Extensions API:", err));
 });
