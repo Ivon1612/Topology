@@ -76,50 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
         cargarWorksheet(HOJA, dashboard);
       });
     }
-	  
-	let procesandoFiltro = false;
 
-const ws = dashboard.worksheets.find(w => w.name === HOJA);
-if (ws) {
-  ws.addEventListener(tableau.TableauEventType.FilterChanged, async () => {
-    
-    // evita el loop
-    if (procesandoFiltro) return;
-
-    const filtros = await ws.getFiltersAsync();
-    const filtroHL4 = filtros.find(f => f.fieldName === "HL4");
-    const filtroHL3 = filtros.find(f => f.fieldName === "HL3");
-
-    if (filtroHL4 && filtroHL4.appliedValues.length > 0 &&
-        (!filtroHL3 || filtroHL3.appliedValues.length === 0)) {
-
-      procesandoFiltro = true;
-
-      try {
-        const hl4Seleccionado = filtroHL4.appliedValues[0].value;
-
-        const sumData = await ws.getSummaryDataAsync();
-        const cols = sumData.columns.map(c => c.fieldName);
-        const idxHL3 = cols.indexOf("HL3");
-        const idxHL4 = cols.indexOf("HL4");
-
-        const fila = sumData.data.find(r => r[idxHL4].formattedValue === hl4Seleccionado);
-        if (fila) {
-          const hl3Padre = fila[idxHL3].formattedValue;
-          await ws.applyFilterAsync("HL4", [], tableau.FilterUpdateType.All);
-          await ws.applyFilterAsync("HL3", [hl3Padre], tableau.FilterUpdateType.Replace);
-        }
-      } catch(e) {
-        console.error("Error procesando filtro:", e);
-      } finally {
-        procesandoFiltro = false;
-      }
-    }
-
-    cargarWorksheet(HOJA, dashboard);
-  });
-}
-	  
   }).catch(err => console.error("Error inicializando Extensions API:", err));
 });
 
