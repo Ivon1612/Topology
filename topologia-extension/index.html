@@ -127,36 +127,37 @@ function cargarWorksheet(nombreHoja, dashboard) {
 	const filasMap = {};
 	sumData.data.forEach(row => {
 	const id = row[idxNodo].formattedValue;
-	const parentId = row[idxPadre].formattedValue || null;
+	let parentId = row[idxPadre].formattedValue || null;
+	if (parentId === "OTRO") parentId = null; // "OTRO" = sin padre real
 
-	if (id === parentId) {
-    // nodo que es su propio padre:
-    // lo agrega como HL4 hijo con id distinto internamente
-		const idHijo = id + "__HL4";
-		if (!filasMap[idHijo]) {
-      filasMap[idHijo] = {
-        id: idHijo,
-        parentId: id,        // cuelga del HL3 del mismo nombre
-        nombre: id           // nombre visual sin el sufijo
+	// si el VALOR de NE Origen contiene "hl3", esta fila es un nodo padre
+	// (HL3) y debe colgar directo de la raíz sintética, sin importar lo
+	// que diga su propio campo HL3-1 (aunque sea "OTRO" u otro valor)
+	const esHL3 = id.toLowerCase().includes("hl3");
+
+	if (!filasMap[id]) {
+		filasMap[id] = {
+			id,
+			parentId: esHL3 ? "RAIZ" : parentId,
+			nombre: id
 		};
-		}
-    // el HL3 se agrega normalmente como huérfano (lo detecta el código de padresHuerfanos)
-	} else {
-		if (!filasMap[id]) {
-		filasMap[id] = { id, parentId, nombre: id };
-		}
 	}
 	});
 	const filas = Object.values(filasMap);
-	
-	// detecta nodos HL3 que solo aparecen como padres pero no como filas propias
+
+	// detecta nombres de padre (HL3) referenciados en HL3-1 que no tienen
+	// fila propia como NE Origen -> se agregan colgando de la raíz, cada
+	// uno de forma independiente (no comparten nodo entre ellos)
 	const ids = new Set(filas.map(f => f.id));
 	const padresHuerfanos = [...new Set(filas.map(f => f.parentId))]
-	  .filter(p => p !== null && !ids.has(p));
+	  .filter(p => p !== null && p !== "RAIZ" && !ids.has(p));
+	padresHuerfanos.forEach(p => filas.push({ id: p, parentId: "RAIZ", nombre: p }));
 
-	// los agrega como nodos intermedios colgando de una raíz sintética
-	if (padresHuerfanos.length > 0) {
-	  padresHuerfanos.forEach(p => filas.push({ id: p, parentId: "RAIZ", nombre: p }));
+	// cualquier fila que haya quedado sin padre real (null) también
+	// cuelga directo de RAIZ
+	filas.forEach(f => { if (f.parentId === null) f.parentId = "RAIZ"; });
+
+	if (filas.some(f => f.parentId === "RAIZ")) {
 	  filas.push({ id: "RAIZ", parentId: null, nombre: "RAIZ" });
 	}
 
