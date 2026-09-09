@@ -56,7 +56,7 @@
 // =====================================================================
 const CONFIG = {
   campoNodo: "NE Origen",         // nombre del campo/columna que identifica el nodo
-  campoNodoPadre: "HL3-1", // nombre del campo/columna que identifica su padre (vacío/null = raíz)
+  campoNodoPadre: "HL3-1",        // fallback: se usa solo si no se detecta ninguna columna con "hl3" en el nombre
   campoCidr: "Cidr"
 };
 
@@ -86,9 +86,25 @@ function cargarWorksheet(nombreHoja, dashboard) {
 
   worksheetActual.getSummaryDataAsync().then(sumData => {
     const cols = sumData.columns.map(c => c.fieldName);
-    const idxNodo = cols.indexOf(CONFIG.campoNodo);
-    const idxPadre = cols.indexOf(CONFIG.campoNodoPadre);
-	const idxCidr = cols.indexOf(CONFIG.campoCidr);
+
+    // ---------------------------------------------------------------
+    // Detección del campo padre SOLO entre los dos campos configurados
+    // (campoNodo y campoNodoPadre): el que tenga "hl3" en su nombre
+    // (sin distinguir mayúsculas/minúsculas) se usa como campoNodoPadre;
+    // el otro queda como campoNodo. No se busca en el resto de columnas.
+    // ---------------------------------------------------------------
+    let campoNodoReal = CONFIG.campoNodo;
+    let campoPadreReal = CONFIG.campoNodoPadre;
+
+    if (CONFIG.campoNodo.toLowerCase().includes("hl3") &&
+        !CONFIG.campoNodoPadre.toLowerCase().includes("hl3")) {
+      campoNodoReal = CONFIG.campoNodoPadre;
+      campoPadreReal = CONFIG.campoNodo;
+    }
+
+    const idxNodo = cols.indexOf(campoNodoReal);
+    const idxPadre = cols.indexOf(campoPadreReal);
+    const idxCidr = cols.indexOf(CONFIG.campoCidr);
 
     if (idxNodo === -1 || idxPadre === -1) {
       document.getElementById("empty-msg").style.display = "block";
