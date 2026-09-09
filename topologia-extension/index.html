@@ -116,7 +116,8 @@ function cargarWorksheet(nombreHoja, dashboard) {
     const cidrPorNodo = {};
 	sumData.data.forEach(row => {
 	  const nodo = row[idxNodo].formattedValue;
-	  const cidr = row[idxCidr].formattedValue;
+	  if (!nodo) return; // omite filas sin NE Origen válido
+	  const cidr = idxCidr !== -1 ? row[idxCidr].formattedValue : null;
 	  if (!cidrPorNodo[nodo]) cidrPorNodo[nodo] = [];
 	  if (cidr && !cidrPorNodo[nodo].includes(cidr)) {
 		cidrPorNodo[nodo].push(cidr);
@@ -127,6 +128,7 @@ function cargarWorksheet(nombreHoja, dashboard) {
 	const filasMap = {};
 	sumData.data.forEach(row => {
 	const id = row[idxNodo].formattedValue;
+	if (!id) return; // omite filas sin NE Origen válido (evita crashear el render)
 	const parentIdRaw = row[idxPadre].formattedValue || null;
 
 	// si el VALOR de NE Origen contiene "hl3", esta fila es un nodo padre
