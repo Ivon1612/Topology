@@ -160,6 +160,26 @@ function cargarWorksheet(nombreHoja, dashboard) {
 	// vacío) también cuelgan de RAIZ como respaldo
 	filas.forEach(f => { if (f.parentId === null) f.parentId = "RAIZ"; });
 
+	// rompe ciclos: si por inconsistencia de datos dos o más nodos terminan
+	// apuntándose entre sí como padre (A->B->A), d3.stratify() falla con
+	// "cycle" y no dibuja nada. Se detecta siguiendo la cadena de cada nodo
+	// hacia su padre; si se vuelve a pasar por un nodo ya visitado en esa
+	// misma cadena, se corta colgando el nodo de partida directo de RAIZ.
+	const nodeById = new Map(filas.map(f => [f.id, f]));
+	filas.forEach(inicio => {
+	  const visitados = new Set();
+	  let actual = inicio;
+	  while (actual && actual.parentId !== null && actual.parentId !== "RAIZ") {
+	    if (visitados.has(actual.id)) {
+	      console.warn("Ciclo detectado en la jerarquía, se corta en:", inicio.id);
+	      inicio.parentId = "RAIZ";
+	      break;
+	    }
+	    visitados.add(actual.id);
+	    actual = nodeById.get(actual.parentId);
+	  }
+	});
+
 	if (filas.some(f => f.parentId === "RAIZ")) {
 	  filas.push({ id: "RAIZ", parentId: null, nombre: "RAIZ" });
 	}
