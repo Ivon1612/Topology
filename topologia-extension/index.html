@@ -127,34 +127,35 @@ function cargarWorksheet(nombreHoja, dashboard) {
 	const filasMap = {};
 	sumData.data.forEach(row => {
 	const id = row[idxNodo].formattedValue;
-	let parentId = row[idxPadre].formattedValue || null;
-	if (parentId === "OTRO") parentId = null; // "OTRO" = sin padre real
+	const parentIdRaw = row[idxPadre].formattedValue || null;
 
 	// si el VALOR de NE Origen contiene "hl3", esta fila es un nodo padre
 	// (HL3) y debe colgar directo de la raíz sintética, sin importar lo
-	// que diga su propio campo HL3-1 (aunque sea "OTRO" u otro valor)
+	// que diga su propio campo HL3-1 (aunque sea "OTRO" u otro valor).
+	// Si NO contiene "hl3", cuelga exactamente de lo que haya en su
+	// campo HL3-1, tal cual venga (incluido "OTRO" si así viniera).
 	const esHL3 = id.toLowerCase().includes("hl3");
 
 	if (!filasMap[id]) {
 		filasMap[id] = {
 			id,
-			parentId: esHL3 ? "RAIZ" : parentId,
+			parentId: esHL3 ? "RAIZ" : parentIdRaw,
 			nombre: id
 		};
 	}
 	});
 	const filas = Object.values(filasMap);
 
-	// detecta nombres de padre (HL3) referenciados en HL3-1 que no tienen
-	// fila propia como NE Origen -> se agregan colgando de la raíz, cada
-	// uno de forma independiente (no comparten nodo entre ellos)
+	// detecta nombres de padre referenciados en HL3-1 que no tienen fila
+	// propia como NE Origen (nodo intermedio faltante en los datos) ->
+	// se agregan colgando de la raíz, cada uno de forma independiente
 	const ids = new Set(filas.map(f => f.id));
 	const padresHuerfanos = [...new Set(filas.map(f => f.parentId))]
 	  .filter(p => p !== null && p !== "RAIZ" && !ids.has(p));
 	padresHuerfanos.forEach(p => filas.push({ id: p, parentId: "RAIZ", nombre: p }));
 
-	// cualquier fila que haya quedado sin padre real (null) también
-	// cuelga directo de RAIZ
+	// filas que hayan quedado sin ningún valor en su campo HL3-1 (campo
+	// vacío) también cuelgan de RAIZ como respaldo
 	filas.forEach(f => { if (f.parentId === null) f.parentId = "RAIZ"; });
 
 	if (filas.some(f => f.parentId === "RAIZ")) {
