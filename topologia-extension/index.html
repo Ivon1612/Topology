@@ -110,34 +110,34 @@ function cargarWorksheet(nombreHoja, dashboard) {
 	// filas únicas para el árbol (sin duplicados por CIDR)
 	const filasMap = {};
 	sumData.data.forEach(row => {
-	const id = row[idxNodo].formattedValue;
-	const parentId = row[idxPadre].formattedValue || null;
+	  const id = row[idxNodo].formattedValue;
+	  const parentId = row[idxPadre].formattedValue || null;
 
-	if (id === parentId) {
+	  if (id === parentId) {
     // nodo que es su propio padre:
     // lo agrega como HL4 hijo con id distinto internamente
 		const idHijo = id + "__HL4";
 		if (!filasMap[idHijo]) {
-      filasMap[idHijo] = {
-        id: idHijo,
-        parentId: id,        // cuelga del HL3 del mismo nombre
-        nombre: id           // nombre visual sin el sufijo
-		};
+          filasMap[idHijo] = {
+            id: idHijo,
+            parentId: id,        // cuelga del HL3 del mismo nombre
+            nombre: id           // nombre visual sin el sufijo
+		  };
 		}
     // el HL3 se agrega normalmente como huérfano (lo detecta el código de padresHuerfanos)
-	} else if (id === "sin nodo") {
+	  } else if (id === "sin nodo") {
     // NUEVO: "sin nodo" es una etiqueta compartida, no una identidad única.
     // hay que generar un id distinto por cada nodoPadre que la use.
-    const idHijo = "sin_nodo__" + parentId;
-    if (!filasMap[idHijo]) {
-      filasMap[idHijo] = { id: idHijo, parentId, nombre: "sin nodo" };
-		} 
-	} else {
+    	  const idHijo = "sin_nodo__" + parentId;
+    	  if (!filasMap[idHijo]) {
+      	  filasMap[idHijo] = { id: idHijo, parentId, nombre: "sin nodo" };
+			} 
+	  } else {
 		if (!filasMap[id]) {
-		filasMap[id] = { id, parentId, nombre: id };
+		  filasMap[id] = { id, parentId, nombre: id };
+		  }
 		}
-	}
-	}),
+	  }),
 	const filas = Object.values(filasMap);
 	
 	// detecta nodos HL3 que solo aparecen como padres pero no como filas propias
