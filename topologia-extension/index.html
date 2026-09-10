@@ -55,12 +55,12 @@
 // CONFIG: ajusta estos nombres a los de tus campos reales en Tableau
 // =====================================================================
 const CONFIG = {
-  campoNodo: "NE Origen",         // nombre del campo/columna que identifica el nodo
-  campoNodoPadre: "HL3-1",        // fallback: se usa solo si no se detecta ninguna columna con "hl3" en el nombre
+  campoNodo: "nodo",         // nombre del campo/columna que identifica el nodo
+  campoNodoPadre: "nodoPadre", // nombre del campo/columna que identifica su padre (vacío/null = raíz)
   campoCidr: "Cidr"
 };
 
-const HOJA = "tree"; // <- cambia por el nombre exacto de tu hoja
+const HOJA = "treeV1"; // <- cambia por el nombre exacto de tu hoja
 
 let worksheetActual = null;
 
@@ -86,25 +86,9 @@ function cargarWorksheet(nombreHoja, dashboard) {
 
   worksheetActual.getSummaryDataAsync().then(sumData => {
     const cols = sumData.columns.map(c => c.fieldName);
-
-    // ---------------------------------------------------------------
-    // Detección del campo padre SOLO entre los dos campos configurados
-    // (campoNodo y campoNodoPadre): el que tenga "hl3" en su nombre
-    // (sin distinguir mayúsculas/minúsculas) se usa como campoNodoPadre;
-    // el otro queda como campoNodo. No se busca en el resto de columnas.
-    // ---------------------------------------------------------------
-    let campoNodoReal = CONFIG.campoNodo;
-    let campoPadreReal = CONFIG.campoNodoPadre;
-
-    if (CONFIG.campoNodo.toLowerCase().includes("hl3") &&
-        !CONFIG.campoNodoPadre.toLowerCase().includes("hl3")) {
-      campoNodoReal = CONFIG.campoNodoPadre;
-      campoPadreReal = CONFIG.campoNodo;
-    }
-
-    const idxNodo = cols.indexOf(campoNodoReal);
-    const idxPadre = cols.indexOf(campoPadreReal);
-    const idxCidr = cols.indexOf(CONFIG.campoCidr);
+    const idxNodo = cols.indexOf(CONFIG.campoNodo);
+    const idxPadre = cols.indexOf(CONFIG.campoNodoPadre);
+	const idxCidr = cols.indexOf(CONFIG.campoCidr);
 
     if (idxNodo === -1 || idxPadre === -1) {
       document.getElementById("empty-msg").style.display = "block";
@@ -116,8 +100,7 @@ function cargarWorksheet(nombreHoja, dashboard) {
     const cidrPorNodo = {};
 	sumData.data.forEach(row => {
 	  const nodo = row[idxNodo].formattedValue;
-	  if (!nodo) return; // omite filas sin NE Origen válido
-	  const cidr = idxCidr !== -1 ? row[idxCidr].formattedValue : null;
+	  const cidr = row[idxCidr].formattedValue;
 	  if (!cidrPorNodo[nodo]) cidrPorNodo[nodo] = [];
 	  if (cidr && !cidrPorNodo[nodo].includes(cidr)) {
 		cidrPorNodo[nodo].push(cidr);
@@ -128,59 +111,36 @@ function cargarWorksheet(nombreHoja, dashboard) {
 	const filasMap = {};
 	sumData.data.forEach(row => {
 	const id = row[idxNodo].formattedValue;
-	if (!id) return; // omite filas sin NE Origen válido (evita crashear el render)
-	const parentIdRaw = row[idxPadre].formattedValue || null;
+	const parentId = row[idxPadre].formattedValue || null;
 
-	// si el VALOR de NE Origen contiene "hl3", esta fila es un nodo padre
-	// (HL3) y debe colgar directo de la raíz sintética, sin importar lo
-	// que diga su propio campo HL3-1 (aunque sea "OTRO" u otro valor).
-	// Si NO contiene "hl3", cuelga exactamente de lo que haya en su
-	// campo HL3-1, tal cual venga (incluido "OTRO" si así viniera).
-	const esHL3 = id.toLowerCase().includes("hl3");
-
-	if (!filasMap[id]) {
-		filasMap[id] = {
-			id,
-			parentId: esHL3 ? "RAIZ" : parentIdRaw,
-			nombre: id
+	if (id === parentId) {
+    // nodo que es su propio padre:
+    // lo agrega como HL4 hijo con id distinto internamente
+		const idHijo = id + "__HL4";
+		if (!filasMap[idHijo]) {
+      filasMap[idHijo] = {
+        id: idHijo,
+        parentId: id,        // cuelga del HL3 del mismo nombre
+        nombre: id           // nombre visual sin el sufijo
 		};
+		}
+    // el HL3 se agrega normalmente como huérfano (lo detecta el código de padresHuerfanos)
+	} else {
+		if (!filasMap[id]) {
+		filasMap[id] = { id, parentId, nombre: id };
+		}
 	}
 	});
 	const filas = Object.values(filasMap);
-
-	// detecta nombres de padre referenciados en HL3-1 que no tienen fila
-	// propia como NE Origen (nodo intermedio faltante en los datos) ->
-	// se agregan colgando de la raíz, cada uno de forma independiente
+	
+	// detecta nodos HL3 que solo aparecen como padres pero no como filas propias
 	const ids = new Set(filas.map(f => f.id));
 	const padresHuerfanos = [...new Set(filas.map(f => f.parentId))]
-	  .filter(p => p !== null && p !== "RAIZ" && !ids.has(p));
-	padresHuerfanos.forEach(p => filas.push({ id: p, parentId: "RAIZ", nombre: p }));
+	  .filter(p => p !== null && !ids.has(p));
 
-	// filas que hayan quedado sin ningún valor en su campo HL3-1 (campo
-	// vacío) también cuelgan de RAIZ como respaldo
-	filas.forEach(f => { if (f.parentId === null) f.parentId = "RAIZ"; });
-
-	// rompe ciclos: si por inconsistencia de datos dos o más nodos terminan
-	// apuntándose entre sí como padre (A->B->A), d3.stratify() falla con
-	// "cycle" y no dibuja nada. Se detecta siguiendo la cadena de cada nodo
-	// hacia su padre; si se vuelve a pasar por un nodo ya visitado en esa
-	// misma cadena, se corta colgando el nodo de partida directo de RAIZ.
-	const nodeById = new Map(filas.map(f => [f.id, f]));
-	filas.forEach(inicio => {
-	  const visitados = new Set();
-	  let actual = inicio;
-	  while (actual && actual.parentId !== null && actual.parentId !== "RAIZ") {
-	    if (visitados.has(actual.id)) {
-	      console.warn("Ciclo detectado en la jerarquía, se corta en:", inicio.id);
-	      inicio.parentId = "RAIZ";
-	      break;
-	    }
-	    visitados.add(actual.id);
-	    actual = nodeById.get(actual.parentId);
-	  }
-	});
-
-	if (filas.some(f => f.parentId === "RAIZ")) {
+	// los agrega como nodos intermedios colgando de una raíz sintética
+	if (padresHuerfanos.length > 0) {
+	  padresHuerfanos.forEach(p => filas.push({ id: p, parentId: "RAIZ", nombre: p }));
 	  filas.push({ id: "RAIZ", parentId: null, nombre: "RAIZ" });
 	}
 
