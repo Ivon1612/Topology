@@ -137,7 +137,7 @@ function cargarWorksheet(nombreHoja, dashboard) {
 		  filasMap[id] = { id, parentId, nombre: id };
 		  }
 		}
-	  }),
+	  });
 	const filas = Object.values(filasMap);
 	
 	// detecta nodos HL3 que solo aparecen como padres pero no como filas propias
