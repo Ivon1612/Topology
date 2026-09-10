@@ -125,7 +125,14 @@ function cargarWorksheet(nombreHoja, dashboard) {
 		};
 		}
     // el HL3 se agrega normalmente como huérfano (lo detecta el código de padresHuerfanos)
-	} else {
+	} else if (id === "sin nodo") {
+    // NUEVO: "sin nodo" es una etiqueta compartida, no una identidad única.
+    // hay que generar un id distinto por cada nodoPadre que la use.
+    const idHijo = "sin_nodo__" + parentId;
+    if (!filasMap[idHijo]) {
+      filasMap[idHijo] = { id: idHijo, parentId, nombre: "sin nodo" };
+		
+    } else {
 		if (!filasMap[id]) {
 		filasMap[id] = { id, parentId, nombre: id };
 		}
